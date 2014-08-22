@@ -18,8 +18,9 @@
 
 }
 </textarea></p>
-    <a href="sample-process.html">Sample 1</a>
-    
+    <a href="sample-simple.html">Simple sample</a>    
+    <a href="sample-process.html">Process Sample</a>
+    <!--  
     <p>
       <label>Output format:</label>
       <select id="format">
@@ -37,7 +38,7 @@
         <option>neato</option>
       </select>
     </p>
-    
+    -->
     <p><button id="generate">Generate</button></p>
     
     <div id="output"></div>
@@ -54,8 +55,8 @@
     document.getElementById("generate").addEventListener("click", function(e) {
        
       var input = document.getElementById("input").value;
-      var format = document.getElementById("format").value;
-      var engine = document.getElementById("engine").value;
+      var format = "svg"; //document.getElementById("format").value;
+      var engine = "dot"; // document.getElementById("engine").value;
       
       var result = Viz(input, format, engine);
       
