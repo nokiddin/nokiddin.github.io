@@ -1,0 +1,35 @@
+<html>
+<body>
+    
+    <p><pre>digraph G {
+
+	subgraph cluster_0 {
+		style=filled;
+		color=lightgrey;
+		node [style=filled,color=white];
+		a0 -&gt; a1 -&gt; a2 -&gt; a3;
+		label = "process #1";
+	}
+
+	subgraph cluster_1 {
+		node [style=filled];
+		b0 -&gt; b1 -&gt; b2 -&gt; b3;
+		label = "process #2";
+		color=blue
+	}
+	start -&gt; a0;
+	start -&gt; b0;
+	a1 -&gt; b3;
+	b2 -&gt; a3;
+	a3 -&gt; a0;
+	a3 -&gt; end;
+	b3 -&gt; end;
+
+	start [shape=Mdiamond];
+	end [shape=Msquare];
+}
+</pre>
+</p>
+</body>
+</html>
+
