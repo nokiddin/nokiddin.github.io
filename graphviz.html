@@ -9,17 +9,24 @@
       width: 500px;
       height: 300px;
     }
+
+	#divinput {
+		display: none;
+	}
       
     </style>
   <style type="text/css"></style></head>
   <body>
-    
+	<div id="divinput"> 
     <p><textarea id="input">digraph G {
 
 }
-</textarea></p>
+	</textarea></p>
     <a href="sample-simple.html">Simple sample</a>    
     <a href="sample-process.html">Process Sample</a>
+    <p><button id="generate">Generate</button></p>
+	</div>
+
     <!--  
     <p>
       <label>Output format:</label>
@@ -39,34 +46,67 @@
       </select>
     </p>
     -->
-    <p><button id="generate">Generate</button></p>
     
     <div id="output"></div>
     <div id="inspect"></div>
     
-    <script src="http://mdaines.github.io/viz.js/viz.js"></script>
+    <script src="http://nokiddin.github.io/viz.js"></script>
     <!-- <script src="viz.js"></script> -->
     <script>
-    
+	function wrapasdigraph(x){
+		return  "digraph G {\n" + x + "\n}";
+	}
+	function readfragment(s){
+		if(!s) return {};
+		if(s.substr(0,3)=='#d:'){
+			return {data:wrapasdigraph(s.substring(3)), flag:"grf"};
+		}else if(s.substr(0,4)=="#ds:"){
+			return {data:wrapasdigraph(s.substring(4)), flag:"grf,src"};
+		}
+	}
+	function generate_svg(sdot){
+		var svg=Viz(sdot, "svg", "dot");
+		return result = { svg: svg } ;
+	}
+	function onload_(){
+		var input=readfragment(window.location.hash);
+		if(input && input.data){
+			
+			var bshowsrc, bshowgrf;
+			bshowgrf = (input.flag && (","+input.flag+",").match(/,grf,/));
+			bshowsrc = (input.flag && (","+input.flag+",").match(/,src,/));
+
+			displayresults(generate_svg(input.data).svg, bshowgrf, bshowsrc);
+		}else{
+			el("divinput").style.display="inherit";
+		}
+	}
+	window.onload=onload_;
+	
     function inspect(s) {
       return "<pre>" + s.replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\"/g, "&quot;") + "</pre>";
     }
-      
-    document.getElementById("generate").addEventListener("click", function(e) {
-       
-      var input = document.getElementById("input").value;
-      var format = "svg"; //document.getElementById("format").value;
-      var engine = "dot"; // document.getElementById("engine").value;
-      
-      var result = Viz(input, format, engine);
-      
-      if (format == "svg") {
-        document.getElementById("output").innerHTML = result;
-      } else {
-        document.getElementById("output").innerHTML = "";
-      }
 
-      document.getElementById("inspect").innerHTML = inspect(result);
+	function el(id){
+		return document.getElementById(id);
+	}
+	function render(id, text, visible){
+		el(id).innerHTML = text; //is set even for display:none case, for any programmatic dom access. 
+		el(id).style.display=visible?"inherit":"none";
+	}
+	function displayresults(svg, showgrf, showsrc){
+		render("output", svg, showgrf);
+		render("inspect", inspect(svg), showsrc);
+	}
+      
+    el("generate").addEventListener("click", function(e) {
+      var result = generate_svg(el("input").value);
+      
+      if (result && result.svg) {
+		displayresults(result.svg, true);
+      } else {
+        displayresults("", true);
+      }
       
     });
       
