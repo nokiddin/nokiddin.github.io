@@ -26,26 +26,6 @@
     <a href="sample-process.html">Process Sample</a>
     <p><button id="generate">Generate</button></p>
 	</div>
-
-    <!--  
-    <p>
-      <label>Output format:</label>
-      <select id="format">
-        <option>dot</option>
-        <option>plain</option>
-        <option selected="">svg</option>
-        <option>xdot</option>
-      </select>
-    </p>
-    
-    <p>
-      <label>Layout engine:</label>
-      <select id="engine">
-        <option selected="">dot</option>
-        <option>neato</option>
-      </select>
-    </p>
-    -->
     
     <div id="output"></div>
     <div id="inspect"></div>
@@ -56,16 +36,32 @@
 	function wrapasdigraph(x){
 		return  "digraph G {\n" + x + "\n}";
 	}
+	function urldecode(s){
+		return decodeURI(s);
+	}
 	function readfragment(s){
 		if(!s) return {};
-		if(s.substr(0,3)=='#d:'){
-			return {data:wrapasdigraph(s.substring(3)), flag:"grf"};
-		}else if(s.substr(0,4)=="#ds:"){
-			return {data:wrapasdigraph(s.substring(4)), flag:"grf,src"};
+		if(s.charAt(0)!="#") return {};
+
+		s = decodeURI(s);
+		var frgtypendx=s.indexOf(":");
+		if(frgtypendx < 0) return {};
+
+		var frgtype=s.substring(1,frgtypendx);
+		var frgdata=s.substr(frgtypendx+1);
+		
+		if(frgtype=='d'){
+			return {data:wrapasdigraph(frgdata), flag:"grf"};
+		}else if(frgtype=="db"){
+			return {data:wrapasdigraph(frgdata), flag:"grf,dbg"};
+		}else if(frgtype=="de"){
+			return {data:wrapasdigraph(frgdata), flag:"grf,src,dbg"};
 		}
+
 	}
 	function generate_svg(sdot){
-		var svg=Viz(sdot, "svg", "dot");
+		var engine="dot"; //"neato"
+		var svg=Viz(sdot, "svg", engine); 
 		return result = { svg: svg } ;
 	}
 	function onload_(){
@@ -75,8 +71,10 @@
 			var bshowsrc, bshowgrf;
 			bshowgrf = (input.flag && (","+input.flag+",").match(/,grf,/));
 			bshowsrc = (input.flag && (","+input.flag+",").match(/,src,/));
+			bshowdbg = (input.flag && (","+input.flag+",").match(/,dbg,/));
 
-			displayresults(generate_svg(input.data).svg, bshowgrf, bshowsrc);
+			el("divinput").style.display=bshowsrc?"inherit":"none";
+			displayresults(generate_svg(input.data).svg, bshowgrf, bshowdbg);
 		}else{
 			el("divinput").style.display="inherit";
 		}
@@ -94,9 +92,9 @@
 		el(id).innerHTML = text; //is set even for display:none case, for any programmatic dom access. 
 		el(id).style.display=visible?"inherit":"none";
 	}
-	function displayresults(svg, showgrf, showsrc){
+	function displayresults(svg, showgrf, showdbg){
 		render("output", svg, showgrf);
-		render("inspect", inspect(svg), showsrc);
+		render("inspect", inspect(svg), showdbg);
 	}
       
     el("generate").addEventListener("click", function(e) {
