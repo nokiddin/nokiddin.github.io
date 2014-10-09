@@ -24,20 +24,29 @@
 	</textarea></p>
     <a href="sample-simple.html">Simple sample</a>    
     <a href="sample-process.html">Process Sample</a>
-    <p><button id="generate">Generate</button></p>
+    <p><button id="generate">Visualize</button></p>
+    <p><button id="publish">Publish URL</button></p>
 	</div>
     
+
+    <div id="divpuburi"><a id="puburi" href=""></a></div>
     <div id="output"></div>
     <div id="inspect"></div>
     
-    <script src="http://nokiddin.github.io/viz.js"></script>
-    <!-- <script src="viz.js"></script> -->
+    <!-- <script src="http://nokiddin.github.io/viz.js"></script> -->
+    <script src="viz.js"></script>
     <script>
 	function wrapasdigraph(x){
+		/*if(x.match(/ *digraph/){
+			return x;	
+		}*/
 		return  "digraph G {\n" + x + "\n}";
 	}
 	function urldecode(s){
 		return decodeURI(s);
+	}
+	function mkuri(s){
+		return encodeURI(s);
 	}
 	function readfragment(s){
 		if(!s) return {};
@@ -56,13 +65,31 @@
 			return {data:wrapasdigraph(frgdata), flag:"grf,dbg"};
 		}else if(frgtype=="de"){
 			return {data:wrapasdigraph(frgdata), flag:"grf,src,dbg"};
+		}else if(frgtype=="di"){
+			return {data:frgdata, flag:"grf"};
 		}
 
 	}
+	function generate_uri(sdot, notiny, done){
+		var rootpage= 
+			"http://nokiddin.github.io/graphviz.html";
+			//"";
+		var uri = rootpage + "#di:"+mkuri(sdot);
+		if(!!notiny) done(uri); else leggytinyurl(uri, done);
+	}
+	function _viz(){
+		var rv;
+		try{
+			rv = Viz.apply(this, arguments);
+		}catch(e){
+			rv = null;
+		}
+		return rv;
+	}
 	function generate_svg(sdot){
 		var engine="dot"; //"neato"
-		var svg=Viz(sdot, "svg", engine); 
-		return result = { svg: svg } ;
+		var svg=_viz(sdot, "svg", engine); 
+		return result = { svg: svg?svg:"SYNTAX ERROR IN DIGRAPH" } ;
 	}
 	function onload_(){
 		var input=readfragment(window.location.hash);
@@ -74,7 +101,10 @@
 			bshowdbg = (input.flag && (","+input.flag+",").match(/,dbg,/));
 
 			el("divinput").style.display=bshowsrc?"inherit":"none";
-			displayresults(generate_svg(input.data).svg, bshowgrf, bshowdbg);
+			if(bshowsrc){
+				el("input").value=input.data;
+			}
+			displayresults(generate_svg(input.data), bshowgrf, bshowdbg);
 		}else{
 			el("divinput").style.display="inherit";
 		}
@@ -92,23 +122,113 @@
 		el(id).innerHTML = text; //is set even for display:none case, for any programmatic dom access. 
 		el(id).style.display=visible?"inherit":"none";
 	}
-	function displayresults(svg, showgrf, showdbg){
-		render("output", svg, showgrf);
-		render("inspect", inspect(svg), showdbg);
+	function render_a(id, uri, visible){
+		if(!el(id).href) return ;
+		el(id).href = leggytinyurl(uri);
+		el(id).innerText = uri;
 	}
-      
+	function displayresults(results, showgrf, showdbg, showuri){
+		if(results.svg){
+			render("output", results.svg, showgrf);
+			render("inspect", inspect(results.svg), showdbg);
+		}
+		if(results.uri){
+			render_a("puburi", results.uri, showuri);
+		}
+	}
+    el("publish").addEventListener("click", function(e){
+		//Temporarily disabling tinyurl generation as our generator leggy.io ain't CORS-friendly.
+		//Other generators are excessively ad-friendly. 
+		var uri = generate_uri(el("input").value, true, function(uri){
+			displayresults({uri:uri, dspuri:uri}, false, false, true);
+		}); 
+	});
+	/*
+	el("puburi").addEventListener("click", function(e){
+		onload_();
+	}); */
     el("generate").addEventListener("click", function(e) {
       var result = generate_svg(el("input").value);
       
       if (result && result.svg) {
-		displayresults(result.svg, true);
+		displayresults(result, true);
       } else {
-        displayresults("", true);
+        displayresults({svg:""}, true);
       }
       
     });
-      
-    </script>
+   
+    function _get_content_type(headers){ //headers can be an array of headers or a single header string.
+		var hct ; //content type header serialized
+		var charset; //charset part only
+		var ct ;  //content-type part only
+		var outdata = null;
+		if(headers){ //de-multiplex array of headers and a single string header. 
+			if(typeof headers =='string')
+				hct=headers;
+			else (hct = headers["content-type"]);
+			
+			if(hct){
+				var c = hct.split(';');
+				if(c[0].trim() == "text/plain"){
+					cs = c[1].split('=');
+					if(cs[0].trim() == "charset"){
+						charset = cs[1].trim();
+					}   
+					ct = c[0].trim();
+				}   
+
+				// we're good if charset looks like utf8 or utf-8  mixed/upper/lowercase etc.
+				outdata={ content_type: ct };
+				outdata.charset = ((charset.search(/utf-?8/i)>=0)? "utf8":charset);
+			}
+		}   
+		return outdata;
+	}
+
+	//derivative of https://gist.github.com/4706967 
+	function jsonxhr(url,cb,method,post,reqct) {
+	 cb = cb || function(){}
+	 var ftimer, xhr;
+	 try{ xhr = new XMLHttpRequest(); }catch(e){
+	 try{ xhr = new ActiveXObject("Msxml2.XMLHTTP"); }catch (e){
+	  if(console)console.log("tinyxhr: XMLHttpRequest not supported");
+	  cb(e);
+	 }
+	 }
+	 ftimer = setTimeout(function() {xhr.abort(); cb(new Error("tinyxhr: aborted by a timeout"), "",xhr); } , 8000);
+	 xhr.onreadystatechange = function()
+	 {
+	  if (xhr.readyState != 4) return;
+	  clearTimeout(ftimer);
+	  if(xhr.status == 200){
+		var rct=_get_content_type(xhr.getResponseHeader("Content-Type")); 
+		if(!rct){ cb(new Error("Bad Content Type")); return ; } 
+		var rtxt=xhr.responseText; 
+		var rjson;
+		if(rct.content_type="application/json"){ try { rjson=JSON.parse(rtxt); } catch(e){ cb(e); }}
+		cb(false, rjson || rtxt, xhr); 
+	  }else { 
+		cb(new Error("tinyxhr: server respnse status is "+xhr.status));
+	  } 
+	}
+	 xhr.open(method?method.toUpperCase():"GET", url, true);
+	 
+	 //xhr.withCredentials = true;
+	  
+	 if(!post)
+	  xhr.send();
+	 else
+	 {
+	  xhr.setRequestHeader('Content-Type', reqct?reqct:'application/json');
+	  xhr.send(post);
+	 }
+	}	
+
+	function leggytinyurl(url, done){
+		jsonxhr("http://leggy.io/api/v1/shorten", done, "POST", {longurl:url});
+	}
+	</script>
     
   
 </body></html>
