@@ -40,7 +40,8 @@
 		/*if(x.match(/ *digraph/){
 			return x;	
 		}*/
-		return  "digraph G {\n" + x + "\n}";
+		//return  "digraph G {\n" + x + "\n}";
+		return x;
 	}
 	function urldecode(s){
 		return decodeURI(s);
@@ -124,7 +125,17 @@
 	}
 	function render_a(id, uri, visible){
 		if(!el(id).href) return ;
-		el(id).href = leggytinyurl(uri);
+
+		// generate tinyurl using leggy if enabled. 
+		(function(done){
+			var TINYMAKER="none"; // disabled until leggy developers add CORS support. 
+			
+			if(TINYMAKER=="leggy")
+				leggytinyurl(uri, done);
+			else if(TINYMAKER=="none")
+				done(false, {shortUrl:uri}, null);
+
+		})(function(failure, data){ el(id).href = data.shortUrl; } );
 		el(id).innerText = uri;
 	}
 	function displayresults(results, showgrf, showdbg, showuri){
@@ -188,7 +199,7 @@
 
 	//derivative of https://gist.github.com/4706967 
 	function jsonxhr(url,cb,method,post,reqct) {
-	 cb = cb || function(){}
+	 cb = cb || function(failure, jsonortxt, xhrobject){}
 	 var ftimer, xhr;
 	 try{ xhr = new XMLHttpRequest(); }catch(e){
 	 try{ xhr = new ActiveXObject("Msxml2.XMLHTTP"); }catch (e){
@@ -226,8 +237,9 @@
 	}	
 
 	function leggytinyurl(url, done){
-		jsonxhr("http://leggy.io/api/v1/shorten", done, "POST", {longurl:url});
+		jsonxhr("http://leggy.io/api/v1/shorten", done, "POST", {longUrl:url});
 	}
+
 	</script>
     
   
