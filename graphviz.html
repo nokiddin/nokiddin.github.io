@@ -65,6 +65,8 @@
 		}else if(frgtype=="db"){
 			return {data:wrapasdigraph(frgdata), flag:"grf,dbg"};
 		}else if(frgtype=="de"){
+			return {data:wrapasdigraph(frgdata), flag:"grf,src"};
+		}else if(frgtype=="dx"){
 			return {data:wrapasdigraph(frgdata), flag:"grf,src,dbg"};
 		}else if(frgtype=="di"){
 			return {data:frgdata, flag:"grf"};
