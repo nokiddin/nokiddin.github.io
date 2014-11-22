@@ -130,9 +130,7 @@
 			bshowtlb = (input.flag && (","+input.flag+",").match(/,tlb,/));
 
 			el("divinput").style.display=bshowsrc?"inherit":"none";
-			if(bshowsrc){
-				el("input").value=input.data;
-			}
+			el("input").value=input.data;
 			displayresults(generate_svg(input.data), {showgrf:bshowgrf, showdbg:bshowdbg});
 		}else{
 			el("divinput").style.display="inherit";
