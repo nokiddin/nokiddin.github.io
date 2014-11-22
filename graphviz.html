@@ -3,8 +3,12 @@
 <html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
     <meta charset="utf-8">
     <title>dot -&gt; svg</title>
-    <style>
+    <style type="text/css">
       
+    #divtlb {
+      height: 20px;
+	  background: yellow;
+    }
     #input {
       width: 500px;
       height: 300px;
@@ -15,19 +19,23 @@
 	}
       
     </style>
-  <style type="text/css"></style></head>
+  </head>
   <body>
+	<div id="divtlb"> <!-- toolbar -->
+	<span style="text-decoration:underline; cursor:pointer" id="mnuEdit" onclick="show_input('mnuEdit','toggle');">Show Editor</span>
+	<span style="text-decoration:underline; cursor:pointer" id="mnuPublish">Publish URL</span>
+    <a href="samples.html">Samples</a>    
+	</div>
+
 	<div id="divinput"> 
     <p><textarea id="input">digraph G {
 
 }
 	</textarea></p>
-    <a href="sample-simple.html">Simple sample</a>    
-    <a href="sample-process.html">Process Sample</a>
     <p><button id="generate">Visualize</button></p>
-    <p><button id="publish">Publish URL</button></p>
+    <!-- <p><button id="btnPublish">Publish URL</button></p> -->
 	</div>
-    
+   
 
     <div id="divpuburi"><a id="puburi" href=""></a></div>
     <div id="output"></div>
@@ -59,25 +67,27 @@
 
 		var frgtype=s.substring(1,frgtypendx);
 		var frgdata=s.substr(frgtypendx+1);
-		
-		if(frgtype=='d'){
-			return {data:wrapasdigraph(frgdata), flag:"grf"};
-		}else if(frgtype=="db"){
-			return {data:wrapasdigraph(frgdata), flag:"grf,dbg"};
-		}else if(frgtype=="de"){
-			return {data:wrapasdigraph(frgdata), flag:"grf,src"};
-		}else if(frgtype=="dx"){
-			return {data:wrapasdigraph(frgdata), flag:"grf,src,dbg"};
-		}else if(frgtype=="di"){
-			return {data:frgdata, flag:"grf"};
+		var flag=""; 		
+		var cc=0;
+		for(cc=0; cc<frgtype.length; cc++){
+			var ch=(frgtype.charAt(cc));
+			if(ch=='d')
+				flag+=",grf";
+			else if(ch=='s' ||ch=='e')
+				flag+=",src";
+			else if(ch=='x')
+				flag+=",dbg";
+			else if(ch=='t')
+				flag+=",tlb";
 		}
 
+		return {dat:frgdata, flag:flag};
 	}
 	function generate_uri(sdot, notiny, done){
 		var rootpage= 
 			"http://nokiddin.github.io/graphviz.html";
 			//"";
-		var uri = rootpage + "#di:"+mkuri(sdot);
+		var uri = rootpage + "#dt:"+mkuri(sdot);
 		if(!!notiny) done(uri); else leggytinyurl(uri, done);
 	}
 	function _viz(){
@@ -94,6 +104,21 @@
 		var svg=_viz(sdot, "svg", engine); 
 		return result = { svg: svg?svg:"SYNTAX ERROR IN DIGRAPH" } ;
 	}
+	function setinnertext(el,tx){
+		el.innerText=el.textContent=tx;
+	}
+	function show_input(mnuid, purpose){
+		var is_visible=(el("divinput").style.display!="none");
+		if(!purpose || purpose=="hide" || purpose=="false"){
+			is_visible=false;
+		}else if(purpose=="toggle"){
+			is_visible=!is_visible;
+		}else if(purpose===true || purpose=="show" || purpose=="true"){
+			is_visible=true;
+		}
+		el("divinput").style.display=is_visible?"inherit":"none";
+		setinnertext(el(mnuid), is_visible?"Hide Editor":"Show Editor");
+	}
 	function onload_(){
 		var input=readfragment(window.location.hash);
 		if(input && input.data){
@@ -102,12 +127,13 @@
 			bshowgrf = (input.flag && (","+input.flag+",").match(/,grf,/));
 			bshowsrc = (input.flag && (","+input.flag+",").match(/,src,/));
 			bshowdbg = (input.flag && (","+input.flag+",").match(/,dbg,/));
+			bshowtlb = (input.flag && (","+input.flag+",").match(/,tlb,/));
 
 			el("divinput").style.display=bshowsrc?"inherit":"none";
 			if(bshowsrc){
 				el("input").value=input.data;
 			}
-			displayresults(generate_svg(input.data), bshowgrf, bshowdbg);
+			displayresults(generate_svg(input.data), {showgrf:bshowgrf, showdbg:bshowdbg});
 		}else{
 			el("divinput").style.display="inherit";
 		}
@@ -117,7 +143,6 @@
     function inspect(s) {
       return "<pre>" + s.replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\"/g, "&quot;") + "</pre>";
     }
-
 	function el(id){
 		return document.getElementById(id);
 	}
@@ -138,23 +163,28 @@
 				done(false, {shortUrl:uri}, null);
 
 		})(function(failure, data){ el(id).href = data.shortUrl; } );
-		el(id).innerText = uri;
+		setinnertext(el(id), uri);
+		el(id).style.display=visible?"inherit":"none";
 	}
-	function displayresults(results, showgrf, showdbg, showuri){
+	function displayresults(results, displayopts){
 		if(results.svg){
-			render("output", results.svg, showgrf);
-			render("inspect", inspect(results.svg), showdbg);
+			render("output", results.svg, displayopts.showgrf);
+			render("inspect", inspect(results.svg), displayopts.showdbg);
 		}
 		if(results.uri){
-			render_a("puburi", results.uri, showuri);
+			render_a("puburi", results.uri, displayopts.showuri);
 		}
 	}
-    el("publish").addEventListener("click", function(e){
-		//Temporarily disabling tinyurl generation as our generator leggy.io ain't CORS-friendly.
-		//Other generators are excessively ad-friendly. 
-		var uri = generate_uri(el("input").value, true, function(uri){
-			displayresults({uri:uri, dspuri:uri}, false, false, true);
-		}); 
+	
+    ["btnPublish","mnuPublish"].forEach(function(ii){
+		var xel=el(ii); 
+		if(xel) xel.addEventListener("click", function(e){
+			//Temporarily disabling tinyurl generation as our generator leggy.io ain't CORS-friendly.
+			//Other generators are excessively ad-friendly. 
+			var uri = generate_uri(el("input").value, true, function(uri){
+				displayresults({uri:uri, dspuri:uri}, {showuri:true});
+			});
+		});
 	});
 	/*
 	el("puburi").addEventListener("click", function(e){
@@ -164,9 +194,9 @@
       var result = generate_svg(el("input").value);
       
       if (result && result.svg) {
-		displayresults(result, true);
+		displayresults(result, {showgrf:true});
       } else {
-        displayresults({svg:""}, true);
+        displayresults({svg:""}, {showgrf:true});
       }
       
     });
