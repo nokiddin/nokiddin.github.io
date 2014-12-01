@@ -45,11 +45,10 @@
     <script src="viz.js"></script>
     <script>
 	function wrapasdigraph(x){
-		/*if(x.match(/ *digraph/){
+		if(x.match(/^ *digraph/)){
 			return x;	
-		}*/
-		//return  "digraph G {\n" + x + "\n}";
-		return x;
+		}
+		return  "digraph{\n" + x + "\n}";
 	}
 	function urldecode(s){
 		return decodeURI(s);
@@ -57,8 +56,8 @@
 	function mkuri(s){
 		return encodeURI(s);
 	}
-	function readfragment(s){
-		if(!s) return {};
+	function readfragment(s, done){
+		if(!s) { done({});return; }
 		if(s.charAt(0)!="#") return {};
 
 		s = decodeURI(s);
@@ -69,6 +68,7 @@
 		var frgdata=s.substr(frgtypendx+1);
 		var flag=""; 		
 		var cc=0;
+		var wrapper;
 		for(cc=0; cc<frgtype.length; cc++){
 			var ch=(frgtype.charAt(cc));
 			if(ch=='d')
@@ -79,14 +79,22 @@
 				flag+=",dbg";
 			else if(ch=='t')
 				flag+=",tlb";
+			else if(ch=='w'){
+				wrapper=wrapasdigraph;
+			}
 		}
+		
+		if(!wrapper){ wrapper=function(x){return x;}}
 
-		return {data:frgdata, flag:flag};
+		done({data:wrapper(frgdata), flag:flag}); return;
 	}
 	function generate_uri(sdot, notiny, done){
 		var rootpage= 
 			"http://nokiddin.github.io/graphviz.html";
 			//"";
+		
+		//#CdDdt:
+		//nugget syntax: content-type-header content-type (size-header size-in-octets size-suffix)*0 data-header data-flags*0 colon data
 		var uri = rootpage + "#dt:"+mkuri(sdot);
 		if(!!notiny) done(uri); else leggytinyurl(uri, done);
 	}
@@ -120,7 +128,7 @@
 		setinnertext(el(mnuid), is_visible?"Hide Editor":"Show Editor");
 	}
 	function onload_(){
-		var input=readfragment(window.location.hash);
+		readfragment(window.location.hash, function(input){
 		if(input && input.data){
 			
 			var bshowsrc, bshowgrf;
@@ -135,6 +143,7 @@
 		}else{
 			el("divinput").style.display="inherit";
 		}
+		});
 	}
 	window.onload=onload_;
 	
@@ -227,43 +236,78 @@
 		return outdata;
 	}
 
+	function simplexhrget(url,cb){
+		simplexhr(url,cb,"GET",null,null);
+	}
+	function simplexhr(url,cb,method,post,reqct,timeout){
+		cb = cb || function(failure, jsonortxt, xhrobject){}
+		var ftimer, xhr;
+		try{ xhr = new XMLHttpRequest(); }catch(e){
+			try{ xhr = new ActiveXObject("Msxml2.XMLHTTP"); }catch (e){
+				if(console)console.log("tinyxhr: XMLHttpRequest not supported");
+				cb(e);
+				}
+		}
+		ftimer = setTimeout(function() {xhr.abort(); cb(new Error("xhr: aborted by a timeout"), "",xhr); } , timeout?timeout:8000);
+		xhr.onreadystatechange = function() {
+			if (xhr.readyState != 4) return;
+			clearTimeout(ftimer);
+			if(xhr.status == 200){
+				var rct=_get_content_type(xhr.getResponseHeader("Content-Type")); 
+				if(!rct){ cb(new Error("Bad Content Type")); return ; } 
+				var rtxt=xhr.responseText; 
+				cb(false, rtxt, xhr); 
+			}else { 
+			cb(new Error("tinyxhr: server respnse status is "+xhr.status));
+			} 
+		}
+		xhr.open(method?method.toUpperCase():"GET", url, true);
+		//xhr.withCredentials = true;
+
+		if(!post){
+			xhr.send();
+		}else {
+			xhr.setRequestHeader('Content-Type', reqct?reqct:'application/json');
+			xhr.send(post);
+		}
+	}
+
 	//derivative of https://gist.github.com/4706967 
-	function jsonxhr(url,cb,method,post,reqct) {
-	 cb = cb || function(failure, jsonortxt, xhrobject){}
-	 var ftimer, xhr;
-	 try{ xhr = new XMLHttpRequest(); }catch(e){
-	 try{ xhr = new ActiveXObject("Msxml2.XMLHTTP"); }catch (e){
-	  if(console)console.log("tinyxhr: XMLHttpRequest not supported");
-	  cb(e);
-	 }
-	 }
-	 ftimer = setTimeout(function() {xhr.abort(); cb(new Error("tinyxhr: aborted by a timeout"), "",xhr); } , 8000);
-	 xhr.onreadystatechange = function()
-	 {
-	  if (xhr.readyState != 4) return;
-	  clearTimeout(ftimer);
-	  if(xhr.status == 200){
+	function jsonxhr(url,cb,method,post,reqct,timeout) {
+		cb = cb || function(failure, jsonortxt, xhrobject){}
+		var ftimer, xhr;
+		try{ xhr = new XMLHttpRequest(); }catch(e){
+		try{ xhr = new ActiveXObject("Msxml2.XMLHTTP"); }catch (e){
+		if(console)console.log("tinyxhr: XMLHttpRequest not supported");
+		cb(e);
+		}
+		}
+		ftimer = setTimeout(function() {xhr.abort(); cb(new Error("xhr: aborted by a timeout"), "",xhr); } , timeout?timeout:8000);
+		xhr.onreadystatechange = function()
+		{
+		if (xhr.readyState != 4) return;
+		clearTimeout(ftimer);
+		if(xhr.status == 200){
 		var rct=_get_content_type(xhr.getResponseHeader("Content-Type")); 
 		if(!rct){ cb(new Error("Bad Content Type")); return ; } 
 		var rtxt=xhr.responseText; 
 		var rjson;
 		if(rct.content_type="application/json"){ try { rjson=JSON.parse(rtxt); } catch(e){ cb(e); }}
 		cb(false, rjson || rtxt, xhr); 
-	  }else { 
-		cb(new Error("tinyxhr: server respnse status is "+xhr.status));
-	  } 
-	}
-	 xhr.open(method?method.toUpperCase():"GET", url, true);
-	 
-	 //xhr.withCredentials = true;
-	  
-	 if(!post)
-	  xhr.send();
-	 else
-	 {
-	  xhr.setRequestHeader('Content-Type', reqct?reqct:'application/json');
-	  xhr.send(post);
-	 }
+		}else { 
+		cb(new Error("xhr: server response status is "+xhr.status));
+		} 
+		}
+		xhr.open(method?method.toUpperCase():"GET", url, true);
+
+		//xhr.withCredentials = true;
+
+		if(!post)
+		xhr.send();
+		else {
+			xhr.setRequestHeader('Content-Type', reqct?reqct:'application/json');
+			xhr.send(post);
+		}
 	}	
 
 	function leggytinyurl(url, done){
@@ -272,5 +316,7 @@
 
 	</script>
     
-  
+<!--
+ vim: ft=html:noet:ts=2:sts=2:sw=2:
+-->
 </body></html>
