@@ -7,4 +7,4 @@ This following static pages are deployed:
 http://nokiddin.github.io/graphviz.html
 
 You can use a SVG link to your dotty graph thus : 
-http://nokiddin.github.io/graphviz.html#d:a->b->c
+http://nokiddin.github.io/graphviz.html#dw:a->b->c
