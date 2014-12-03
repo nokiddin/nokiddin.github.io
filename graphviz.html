@@ -17,6 +17,11 @@
 	#divinput {
 		display: none;
 	}
+	
+	#diverror {
+		display: none;
+		background: red;
+	}
       
     </style>
   </head>
@@ -26,7 +31,6 @@
 	<span style="text-decoration:underline; cursor:pointer" id="mnuPublish">Publish URL</span>
     <a href="samples.html">Samples</a>    
 	</div>
-
 	<div id="divinput"> 
     <p><textarea id="input" spellcheck="false">digraph G {
 
@@ -35,7 +39,8 @@
     <p><button id="generate">Visualize</button></p>
     <!-- <p><button id="btnPublish">Publish URL</button></p> -->
 	</div>
-   
+	<div id="diverror">
+	</div>
 
     <div id="divpuburi"><a id="puburi" href=""></a></div>
     <div id="output"></div>
@@ -44,11 +49,12 @@
     <!-- <script src="http://nokiddin.github.io/viz.js"></script> -->
     <script src="viz.js"></script>
     <script>
-	function wrapasdigraph(x){
+	function wrapasdigraph(x, done){
 		if(x.match(/^ *digraph/)){
-			return x;	
+			done(x);	
+		}else{
+			done("digraph{\n" + x + "\n}");
 		}
-		return  "digraph{\n" + x + "\n}";
 	}
 	function urldecode(s){
 		return decodeURI(s);
@@ -57,23 +63,27 @@
 		return encodeURI(s);
 	}
 	function readfragment(s, done){
-		if(!s) { done({});return; }
-		if(s.charAt(0)!="#") return {};
+		function failed(){done({}); return 0;}
+		if(!s || s.charAt(0)!="#") { return failed(); }
 
 		s = decodeURI(s);
 		var frgtypendx=s.indexOf(":");
-		if(frgtypendx < 0) return {};
+		if(frgtypendx < 0) return failed();
 
 		var frgtype=s.substring(1,frgtypendx);
 		var frgdata=s.substr(frgtypendx+1);
 		var flag=""; 		
 		var cc=0;
-		var wrapper;
+		var wrapper; //func_type
+		var fetch; //func_type
 		for(cc=0; cc<frgtype.length; cc++){
 			var ch=(frgtype.charAt(cc));
-			if(ch=='d')
+			if(ch=='d'){
 				flag+=",grf";
-			else if(ch=='s' ||ch=='e')
+			}else if(ch=='D'){
+				flag+=",grf";
+				fetch=linkfetch;
+			}else if(ch=='s' ||ch=='e')
 				flag+=",src";
 			else if(ch=='x')
 				flag+=",dbg";
@@ -83,10 +93,23 @@
 				wrapper=wrapasdigraph;
 			}
 		}
-		
-		if(!wrapper){ wrapper=function(x){return x;}}
+		function noop(buffer,done){return done(buffer);}
+		function linkfetch(linkurl,done){ezxhr(linkurl,function(failure,txt){done(failure?null:txt,failure);},"text/plain");}
+		if(!fetch) fetch=noop;	
+		if(!wrapper){ wrapper=noop;}
 
-		done({data:wrapper(frgdata), flag:flag}); return;
+		fetch(frgdata, function(d,error){
+			if(d){
+				wrapper(d, function(wd){ 
+					done({data:wd, flag:flag});
+				});
+			}else{
+				render("diverror",
+					"ERROR: Could not load data. This error usually occurs if the source server you are referencing does not support CORS headers." +
+					(error?error.message:""),
+					true);
+			}
+		});
 	}
 	function generate_uri(sdot, notiny, done){
 		var rootpage= 
@@ -110,7 +133,7 @@
 	function generate_svg(sdot){
 		var engine="dot"; //"neato"
 		var svg=_viz(sdot, "svg", engine); 
-		return result = { svg: svg?svg:"SYNTAX ERROR IN DIGRAPH" } ;
+		return result = svg?{svg:svg}:{error:"SYNTAX ERROR IN DIGRAPH" } ;
 	}
 	function setinnertext(el,tx){
 		el.innerText=el.textContent=tx;
@@ -154,7 +177,7 @@
 		return document.getElementById(id);
 	}
 	function render(id, text, visible){
-		el(id).innerHTML = text; //is set even for display:none case, for any programmatic dom access. 
+		setinnertext(el(id),text); //is set even for display:none case, for any programmatic dom access. 
 		el(id).style.display=visible?"inherit":"none";
 	}
 	function render_a(id, uri, visible){
@@ -174,6 +197,9 @@
 		el(id).style.display=visible?"inherit":"none";
 	}
 	function displayresults(results, displayopts){
+		if(results.error){
+			render("diverror", results.error, true);
+		}
 		if(results.svg){
 			render("output", results.svg, displayopts.showgrf);
 			render("inspect", inspect(results.svg), displayopts.showdbg);
@@ -228,7 +254,7 @@
 					ct = c[0].trim();
 				}   
 
-				// we're good if charset looks like utf8 or utf-8  mixed/upper/lowercase etc.
+			// we're good if charset looks like utf8 or utf-8  mixed/upper/lowercase etc.
 				outdata={ content_type: ct };
 				outdata.charset = ((charset.search(/utf-?8/i)>=0)? "utf8":charset);
 			}
@@ -236,43 +262,82 @@
 		return outdata;
 	}
 
-	function simplexhrget(url,cb){
-		simplexhr(url,cb,"GET",null,null);
-	}
-	function simplexhr(url,cb,method,post,reqct,timeout){
-		cb = cb || function(failure, jsonortxt, xhrobject){}
-		var ftimer, xhr;
-		try{ xhr = new XMLHttpRequest(); }catch(e){
-			try{ xhr = new ActiveXObject("Msxml2.XMLHTTP"); }catch (e){
-				if(console)console.log("tinyxhr: XMLHttpRequest not supported");
-				cb(e);
-				}
-		}
-		ftimer = setTimeout(function() {xhr.abort(); cb(new Error("xhr: aborted by a timeout"), "",xhr); } , timeout?timeout:8000);
-		xhr.onreadystatechange = function() {
-			if (xhr.readyState != 4) return;
-			clearTimeout(ftimer);
-			if(xhr.status == 200){
-				var rct=_get_content_type(xhr.getResponseHeader("Content-Type")); 
-				if(!rct){ cb(new Error("Bad Content Type")); return ; } 
-				var rtxt=xhr.responseText; 
-				cb(false, rtxt, xhr); 
-			}else { 
-			cb(new Error("tinyxhr: server respnse status is "+xhr.status));
-			} 
-		}
-		xhr.open(method?method.toUpperCase():"GET", url, true);
-		//xhr.withCredentials = true;
-
-		if(!post){
-			xhr.send();
-		}else {
-			xhr.setRequestHeader('Content-Type', reqct?reqct:'application/json');
-			xhr.send(post);
-		}
-	}
-
 	//derivative of https://gist.github.com/4706967 
+	// XXXxhrget 
+	//cb is  function(boolean failure, data_t jsonortxt, xhr_t xhrobject)
+	// outct is the  content-type desired in the response.
+	// jsonortxt is either a json object or a text string.
+	function ezxhr(url,cb,outct,timeout){
+		return quickxhr(url,cb,{outct:outct,timeout:timeout});
+	}
+
+	/*
+	options: {
+		method : "GET" (default, unless inpobj is set) ; "POST", "HEAD", etc.
+		inpobj : non-null if sending an object. Sending invokes the method requested. If set, POST is default method. 
+		inpct  : defaults to "application/json" if sending an object.
+		outct  : desired content-type in the response. Defaults to "application/json".
+		timeout: requested timeout in millisec.
+	}
+	The default 'options' is : {method:"GET",outct:"application/json",timeout:8000}
+	*/
+	function quickxhr(url,cb,options){
+		cb = cb || function(failure, jsonortxt, xhrobject){}
+		options=options||{};
+		var post=options.inpobj;
+		var inpct=post?(options.inpct||"application/json"):null;
+		var method=options.method?options.method.toUpperCase():(post?"POST":"GET");
+		var outct=options.outct||"application/json";
+		var timeout=options.timeout||8000;
+		
+		var xhr;
+		function failed(e_,cb,xhr){
+				var e=(typeof(e_)==="string")?(new Error(e_)):e_; 
+				if(console)console.log(e.message);
+				return cb(e,null,xhr);
+			};
+		try{ xhr = new XMLHttpRequest(); }catch(e){
+			try{ xhr = new ActiveXObject("MSXML2.XMLHTTP"); }catch (e){
+				return failed(e,cb,xhr);
+			}
+		}
+		try{
+			var ontimeout=function() {xhr.abort(); return failed("quickxhr: timeout",cb,xhr); } 
+			var ftimer;
+			ftimer = setTimeout(ontimeout , timeout);
+			//TODO: use xhr timeouts : (not all browsers supported)
+			//see :https://developer.mozilla.org/en-US/docs/Web/API/XMLHttpRequest
+			//xhr.ontimeout=ontimeout;
+			
+			//The below line is stubbed out cuz I don't know how to xlate from progressevt to error. 
+			//xhr.onerror=function(progressevt){ failed(null,cb,xhr); }; 
+			xhr.onreadystatechange = function() {
+				if (xhr.readyState != 4) return;
+				clearTimeout(ftimer);
+				if(xhr.status == 200){
+					var rct=_get_content_type(xhr.getResponseHeader("Content-Type")); 
+					if(!rct || rct.content_type!=outct) { return failed("quickxhr: No Content Type",cb,xhr); } 
+					var rv = xhr.responseText;
+					if(rct.content_type=="application/json"){ try { rv=JSON.parse(rv); } catch(e){ return failed(e,cb,xhr); }}
+					return cb(null, rv, xhr); 
+				}else { 
+					return failed("quickxhr: server response status is "+xhr.status,cb,xhr);
+				} 
+			}
+			xhr.open(method?method.toUpperCase():"GET", url, true);
+			xhr.withCredentials = true;
+
+			if(!post){
+				xhr.send();
+			}else {
+				xhr.setRequestHeader('Content-Type', inpct);
+				xhr.send(post);
+			}
+		}catch(e){
+			return failed(e,cb,xhr);
+		}
+	}
+
 	function jsonxhr(url,cb,method,post,reqct,timeout) {
 		cb = cb || function(failure, jsonortxt, xhrobject){}
 		var ftimer, xhr;
@@ -292,7 +357,7 @@
 		if(!rct){ cb(new Error("Bad Content Type")); return ; } 
 		var rtxt=xhr.responseText; 
 		var rjson;
-		if(rct.content_type="application/json"){ try { rjson=JSON.parse(rtxt); } catch(e){ cb(e); }}
+		if(rct.content_type=="application/json"){ try { rjson=JSON.parse(rtxt); } catch(e){ cb(e); }}
 		cb(false, rjson || rtxt, xhr); 
 		}else { 
 		cb(new Error("xhr: server response status is "+xhr.status));
@@ -311,7 +376,7 @@
 	}	
 
 	function leggytinyurl(url, done){
-		jsonxhr("http://leggy.io/api/v1/shorten", done, "POST", {longUrl:url});
+		quickxhr("http://leggy.io/api/v1/shorten", done, {method:"POST", inpobj:{longUrl:url}});
 	}
 
 	</script>
