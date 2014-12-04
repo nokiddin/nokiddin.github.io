@@ -22,13 +22,18 @@
 		display: none;
 		background: red;
 	}
+
+	.cmnuitem {
+		text-decoration:underline;
+		cursor:pointer;
+	}
       
     </style>
   </head>
   <body>
 	<div id="divtlb"> <!-- toolbar -->
-	<span style="text-decoration:underline; cursor:pointer" id="mnuEdit" onclick="show_input('mnuEdit','toggle');">Show Editor</span>
-	<span style="text-decoration:underline; cursor:pointer" id="mnuPublish">Publish URL</span>
+	<span class="cmnuitem" id="mnuEdit" onclick="show_input('mnuEdit','toggle');">Show Editor</span>
+	<span class="cmnuitem" id="mnuPublish">Publish URL</span>
     <a href="samples.html">Samples</a>    
 	</div>
 	<div id="divinput"> 
@@ -40,6 +45,7 @@
     <!-- <p><button id="btnPublish">Publish URL</button></p> -->
 	</div>
 	<div id="diverror">
+	<span class="cmnuitem" id="mnuErr" onclick="show_item('diverror','mnuErr',null,'hide');">Hide</span>&nbsp;<span id="wdgerror"></span>
 	</div>
 
     <div id="divpuburi"><a id="puburi" href=""></a></div>
@@ -104,10 +110,9 @@
 					done({data:wd, flag:flag});
 				});
 			}else{
-				render("diverror",
+				displayerror(
 					"ERROR: Could not load data. This error usually occurs if the source server you are referencing does not support CORS headers." +
-					(error?error.message:""),
-					true);
+					(error?error.message:""));
 			}
 		});
 	}
@@ -139,7 +144,11 @@
 		el.innerText=el.textContent=tx;
 	}
 	function show_input(mnuid, purpose){
-		var is_visible=(el("divinput").style.display!="none");
+		return show_item("divinput",mnuid,{hide:"Hide Editor",show:"Show Editor"},purpose);
+	}
+	function show_item(targetid, mnuid, mnutxt, purpose){
+		mnutxt=mnutxt||{hide:"Hide",show:"Show"};
+		var is_visible=(el(targetid).style.display!="none");
 		if(!purpose || purpose=="hide" || purpose=="false"){
 			is_visible=false;
 		}else if(purpose=="toggle"){
@@ -147,8 +156,8 @@
 		}else if(purpose===true || purpose=="show" || purpose=="true"){
 			is_visible=true;
 		}
-		el("divinput").style.display=is_visible?"inherit":"none";
-		setinnertext(el(mnuid), is_visible?"Hide Editor":"Show Editor");
+		el(targetid).style.display=is_visible?"inherit":"none";
+		setinnertext(el(mnuid), is_visible?(mnutxt["hide"]):(mnutxt["show"]));
 	}
 	function onload_(){
 		readfragment(window.location.hash, function(input){
@@ -176,11 +185,18 @@
 	function el(id){
 		return document.getElementById(id);
 	}
-	function render(id, text, visible){
+
+	//sets item html and then renders (shows/hides) it or an associated item  
+	//value is treated as html by default, or as text if astext is set.
+	//visible is true / false. 
+	function render(id, value, visible, associateid, astext){
 		//set it even for display:none case, for any programmatic dom access. 
-		el(id).innerHTML = text;
-		//setinnertext(el(id),text); 
-		el(id).style.display=visible?"inherit":"none";
+		if(!astext)
+			el(id).innerHTML = value;
+		else
+			setinnertext(el(id),value); 
+		associateid=associateid||id;
+		el(associateid).style.display=visible?"inherit":"none";
 	}
 	function render_a(id, uri, visible){
 		if(!el(id).href) return ;
@@ -198,9 +214,12 @@
 		setinnertext(el(id), uri);
 		el(id).style.display=visible?"inherit":"none";
 	}
+	function displayerror(errortxt){
+		render("wdgerror",errortxt,true,"diverror",true);
+	}
 	function displayresults(results, displayopts){
 		if(results.error){
-			render("diverror", results.error, true);
+			displayerror(results.error);
 		}
 		if(results.svg){
 			render("output", results.svg, displayopts.showgrf);
