@@ -177,7 +177,9 @@
 		return document.getElementById(id);
 	}
 	function render(id, text, visible){
-		setinnertext(el(id),text); //is set even for display:none case, for any programmatic dom access. 
+		//set it even for display:none case, for any programmatic dom access. 
+		el(id).innerHTML = text;
+		//setinnertext(el(id),text); 
 		el(id).style.display=visible?"inherit":"none";
 	}
 	function render_a(id, uri, visible){
