@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<!-- vim: ts=2:sw=2:sts=2:ft=html 
+-->
+<html>
+	<head>
+		<meta charset="utf-8">
+		<meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+		<title>Ticker</title>
+		<meta name="description" content="">
+		<meta name="viewport" content="width=device-width">
+		<style>
+			.TICKER { font-family: Arial;
+				font-size: 12px;
+			}
+		</style>
+	</head>
+	<body>
+		<table class="TICKER">
+		</table>
+		<script>
+			var DEFAULTSPEED=1; 
+			var TICK = { 
+				audio: "tick.wav",
+				rate: (function(Rate){
+						1000/((Rate || DEFAULTSPEED || 1) - 0)
+					})((window.location.hash || "#").substring(1)),
+				ticker: function(){ 
+					document.getElementById("tick").play();
+				},
+				begin: function(){
+					// initialize audio
+					var sound = document.createElement('audio');
+					sound.setAttribute('src', this.audio);
+					sound.setAttribute('id', 'tick');
+					document.body.appendChild(sound);
+
+					setInterval(this.ticker, this.rate);
+				},
+			};  
+			TICK.begin(); 
+		</script>
+	</body>
+</html>
