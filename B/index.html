@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+	<meta charset="utf-8">
+	<script language="javascript">
+	function pad(s,L,c){ s=""+s;while(s.length<L){ s=""+c+s;} return s; }  
+	function dpad2(num){ return pad(num,2,"0"); }  
+	function today_IN(){ var d=new Date(); return dpad2(d.getDate()) + "-" + dpad2(1+d.getMonth()) + "-" + d.getFullYear(); }
+	function patch_HREF(e,u){ e.href=u; return true; }
+	function patch_IE(e){ 
+		return patch_HREF(e, "https://pdf.indianexpress.com/pdfupload/hdfc/ie-mumbai-"+today_IN()+".pdf"); 
+	}  
+	</script>
+	<!-- 
+	https://pdf.indianexpress.com/pdfupload/hdfc/ie-mumbai-17-04-2020.pdf 
+	-->
+</head> 
+ <body>
+ <a id="idIEPaper" href="" onclick="return patch_IE(this);">Today:s Indian Express</a>
+</body>
+</html>
