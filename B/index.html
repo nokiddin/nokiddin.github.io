@@ -3,6 +3,11 @@
 <head>
 	<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 	<meta charset="utf-8">
+	<style>
+		body{
+			text-align: center;
+		}
+	</style>
 	<script language="javascript">
 	function pad(s,L,c){ s=""+s;while(s.length<L){ s=""+c+s;} return s; }  
 	function dpad2(num){ return pad(num,2,"0"); }  
@@ -17,6 +22,11 @@
 	-->
 </head> 
  <body>
- <a id="idIEPaper" href="" onclick="return patch_IE(this);">Today:s Indian Express</a>
-</body>
+ <div class="button-container">
+ <a class="button" id="idIEPaper" href="" onclick="return patch_IE(this);">Today's Indian Express</a>
+ <br>
+ <a class="button" href = "https://epaper.loksatta.com/">Loksatta</a>
+ <br>
+ </div>
+ </body>
 </html>
