@@ -1,0 +1,8 @@
+digraph G {
+	node [style=filled,color=lightgrey];
+	screen1 -> screen3;
+	screen1 -> screen5;
+
+	screen3 -> screen2;
+
+}
