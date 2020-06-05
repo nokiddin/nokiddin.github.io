@@ -1,58 +1,75 @@
 <!DOCTYPE html>
-<!-- adapted from url=http://mdaines.github.io/viz.js/form.html -->
-<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
-    <meta charset="utf-8">
-    <title>dot -&gt; svg</title>
-    <style type="text/css">
-      
-    #divtlb {
-      height: 20px;
-	  background: yellow;
-    }
-    #input {
-      width: 500px;
-      height: 300px;
-    }
+<!--
+Dotty visualizer with a distributable link
+-->
+<!--
+MIT LICENSE
+Copyright (c) 2014-2018 Michael Daines
+Copyright (c) 2017-2022 Nishad Kamat
 
-	#divinput {
-		display: none;
-	}
-	
-	#diverror {
-		display: none;
-		background: red;
-	}
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
 
-	.cmnuitem {
-		text-decoration:underline;
-		cursor:pointer;
-	}
-      
-    </style>
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+-->
+<html>
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+		<meta charset="utf-8">
+		<title>DistroDot - Dotty visualizer for Mind-maps</title>
+		<style type="text/css">
+				
+			#divtlb {
+				height: 20px;
+			background: yellow;
+			}
+			#input {
+				width: 500px;
+				height: 300px;
+			}
+
+			#divinput {
+				display: none;
+			}
+			
+			#diverror {
+				display: none;
+				background: red;
+			}
+
+			.cmnuitem {
+				text-decoration:underline;
+				cursor:pointer;
+			}
+		</style>
   </head>
   <body>
 	<div id="divtlb"> <!-- toolbar -->
-	<span class="cmnuitem" id="mnuEdit" onclick="show_input('mnuEdit','toggle');">Show Editor</span>
+	<span class="cmnuitem" id="mnuEdit" onclick="show_input('mnuEdit','toggle');">Editor</span>
+	<span class="cmnuitem" id="mnuDebug" onclick="show_item('inspect','toggle','mnuDebug',{hide:'Debug',show:'Debug'});">Debug</span>
 	<span class="cmnuitem" id="mnuPublish">Publish URL</span>
-    <a href="samples.html">Samples</a>    
+  <span class="cmnuitem"><a href="samples.html">Samples</a></span>
+	<span class="cmnuitem"><input id="file-input" type="file"></input></span>
 	</div>
-	<div id="divinput"> 
+	<div id="divinput">
     <p><textarea id="input" spellcheck="false">digraph G {
 
-}
-	</textarea></p>
-    <p><button id="generate">Visualize</button></p>
-    <!-- <p><button id="btnPublish">Publish URL</button></p> -->
+};
+</textarea></p>
+    <p><button id="visualize">Visualize</button></p>
 	</div>
 	<div id="diverror">
-	<span class="cmnuitem" id="mnuErr" onclick="show_item('diverror','mnuErr',null,'hide');">Hide</span>&nbsp;<span id="wdgerror"></span>
+	<span class="cmnuitem" id="mnuErr" onclick="show_item('diverror',"hide",'mnuErr');">Hide</span>&nbsp;<span id="wdgerror"></span>
 	</div>
 
     <div id="divpuburi"><a id="puburi" href=""></a></div>
     <div id="output"></div>
     <div id="inspect"></div>
-    
-    <!-- <script src="http://nokiddin.github.io/viz.js"></script> -->
+
+<!--
+Underlying javascript/emscriptem toolkit : http://mdaines.github.io/viz.js
+-->
     <script src="viz.js"></script>
     <script>
 	function wrapasdigraph(x, done){
@@ -68,11 +85,28 @@
 	function mkuri(s){
 		return encodeURI(s);
 	}
-	function readfragment(s, done){
-		function failed(){done({}); return 0;}
-		if(!s || s.charAt(0)!="#") { return failed(); }
 
-		s = decodeURI(s);
+
+	function read_single_file_from_html_input(e, done) { //
+		function failed(){ done(null); return 0; }
+		// read from html "input" tag
+		var file = e.target.files[0];
+		if (!file) {
+			return failed();
+		}
+		var reader = new FileReader();
+		reader.onerror = failed;
+		reader.onload = function(e) {
+			var contents = e.target.result;
+			done({data:contents});
+		};
+		reader.readAsText(file);
+	}
+	function readfragment(fragment, done){
+		function failed(){done({}); return 0;}
+		if(!fragment || fragment.charAt(0)!="#") { return failed(); }
+
+		var s = urldecode(fragment);
 		var frgtypendx=s.indexOf(":");
 		if(frgtypendx < 0) return failed();
 
@@ -82,31 +116,69 @@
 		var cc=0;
 		var wrapper; //func_type
 		var fetch; //func_type
+
+    /*
+    eg.  #CdDdt:
+    FragmentFormat :=  "#" nugget
+    nugget := prefixes payload
+    prefixes :=  N * Flag
+
+    ----------------------------------
+    Flag   | payload
+    -------+--------------------------
+		d      | Payload is a graphviz script and rendered as svg
+    D      | Payload is a http/s url and the text/plain served by that url is the graphviz script to render as svg
+    e      | Show editor
+    s      | same as 'e'
+    f      | Request user to provide a text file that contains the graphviz script to render as svg
+    x      | Debug flag
+		t      | Show toolbar
+    w      | Payload has no "digraph {" header, and we need to apply that.
+    -------+--------------------------
+    */
 		for(cc=0; cc<frgtype.length; cc++){
 			var ch=(frgtype.charAt(cc));
 			if(ch=='d'){
 				flag+=",grf";
 			}else if(ch=='D'){
 				flag+=",grf";
-				fetch=linkfetch;
+				fetch=nicelinkfetch;
 			}else if(ch=='s' ||ch=='e')
 				flag+=",src";
 			else if(ch=='x')
 				flag+=",dbg";
 			else if(ch=='t')
-				flag+=",tlb";
+				flag+=",tlb"; //toolbar
 			else if(ch=='w'){
 				wrapper=wrapasdigraph;
 			}
 		}
 		function noop(buffer,done){return done(buffer);}
 		function linkfetch(linkurl,done){ezxhr(linkurl,function(failure,txt){done(failure?null:txt,failure);},"text/plain");}
-		if(!fetch) fetch=noop;	
-		if(!wrapper){ wrapper=noop;}
+		
+		/* function: nicelinkfetch
+
+			anylinkurl -- a url conformant with https://www.w3.org/TR/WD-html40-970917/htmlweb.html
+      i.e.,
+			a URI,  -- https://developer.mozilla.org/en-US/docs/Web/API/URL/URL
+      or a fully qualified url,
+			or a relative URL  -- https://www.w3.org/TR/WD-html40-970917/htmlweb.html#relative-urls
+		*/
+		function nicelinkfetch(anylinkurl,done){
+			var linkurl;
+			try{
+				linkurl = new URL(anylinkurl, window.location.toString());
+			}catch(failure){ //TypeError
+				done(null,failure);
+			}
+			ezxhr2(linkurl.toString(),function(failure,txt){done(failure?null:txt,failure);},"text/plain");
+		}
+		if(!fetch){ fetch=noop;	}
+		if(!wrapper){ wrapper=noop; }
 
 		fetch(frgdata, function(d,error){
 			if(d){
-				wrapper(d, function(wd){ 
+				wrapper(d, function(wd){
 					done({data:wd, flag:flag});
 				});
 			}else{
@@ -117,13 +189,12 @@
 		});
 	}
 	function generate_uri(sdot, notiny, done){
-		var rootpage= 
-			"http://nokiddin.github.io/gv/graphviz.html";
+		var ROOTPAGE=
+			"http://code.kamat.io/gv/graphviz.html";
 			//"";
 		
-		//#CdDdt:
-		//nugget syntax: content-type-header content-type (size-header size-in-octets size-suffix)*0 data-header data-flags*0 colon data
-		var uri = rootpage + "#dt:"+mkuri(sdot);
+		//For documentation on URI nugget see "readfragment()" function.
+		var uri = ROOTPAGE + "#dt:"+mkuri(sdot);
 		if(!!notiny) done(uri); else leggytinyurl(uri, done);
 	}
 	function _viz(){
@@ -137,73 +208,88 @@
 	}
 	function generate_svg(sdot){
 		var engine="dot"; //"neato"
-		var svg=_viz(sdot, "svg", engine); 
+		var svg=_viz(sdot, "svg", engine);
 		return result = svg?{svg:svg}:{error:"SYNTAX ERROR IN DIGRAPH" } ;
 	}
 	function setinnertext(el,tx){
 		el.innerText=el.textContent=tx;
 	}
+	
 	function show_input(mnuid, purpose){
-		return show_item("divinput",mnuid,{hide:"Hide Editor",show:"Show Editor"},purpose);
+		return show_item("divinput",purpose,mnuid,{hide:"Hide Editor",show:"Editor"});
 	}
-	function show_item(targetid, mnuid, mnutxt, purpose){
-		mnutxt=mnutxt||{hide:"Hide",show:"Show"};
-		var is_visible=(el(targetid).style.display!="none");
+	/*
+		@param purpose: enum { hide | show | toggle }
+					if "hide", the targetid item is hidden. (default).
+				  if "show", the targetid item is shown
+				  if "toggle", the targetid item is shown if already hidden, and vice-versa
+
+		@param mnuid -- optional menu id
+		@param mnutxtoptions -- optional object with keys "hide" and "show" respectively signifying the
+               text to be displayed in the event the purpose is hide or show.
+	*/
+	function show_item(targetid, purpose, mnuid, mnutxtoptions){
+		var to_be_visible=false; //default is false
 		if(!purpose || purpose=="hide" || purpose=="false"){
-			is_visible=false;
-		}else if(purpose=="toggle"){
-			is_visible=!is_visible;
+			to_be_visible=false;
 		}else if(purpose===true || purpose=="show" || purpose=="true"){
-			is_visible=true;
+			to_be_visible=true;
+		}else if(purpose=="toggle"){
+		  var current_state=(el(targetid).style.display!="none");
+			to_be_visible=!current_state;
 		}
-		el(targetid).style.display=is_visible?"inherit":"none";
-		setinnertext(el(mnuid), is_visible?(mnutxt["hide"]):(mnutxt["show"]));
+		el(targetid).style.display=to_be_visible?"inherit":"none";
+		if(mnuid){
+			mnutxtoptions=mnutxtoptions||{show:"Show",hide:"Hide"};
+			setinnertext(el(mnuid), mnutxtoptions[to_be_visible?"show":"hide"]);
+		}
 	}
 	function onload_(){
 		readfragment(window.location.hash, function(input){
-		if(input && input.data){
-			
-			var bshowsrc, bshowgrf;
-			bshowgrf = (input.flag && (","+input.flag+",").match(/,grf,/));
-			bshowsrc = (input.flag && (","+input.flag+",").match(/,src,/));
-			bshowdbg = (input.flag && (","+input.flag+",").match(/,dbg,/));
-			bshowtlb = (input.flag && (","+input.flag+",").match(/,tlb,/));
+			if(input && input.data){
+				var bshowsrc, bshowgrf, bshowdbg, bshowtlb;
+				
+				bshowgrf = !!(input.flag && (","+input.flag+",").match(/,grf,/));
+				bshowsrc = !!(input.flag && (","+input.flag+",").match(/,src,/));
+				bshowdbg = !!(input.flag && (","+input.flag+",").match(/,dbg,/));
+				bshowtlb = !!(input.flag && (","+input.flag+",").match(/,tlb,/));
 
-			el("divinput").style.display=bshowsrc?"inherit":"none";
-			el("input").value=input.data;
-			displayresults(generate_svg(input.data), {showgrf:bshowgrf, showdbg:bshowdbg});
-		}else{
-			el("divinput").style.display="inherit";
-		}
+				el("divinput").style.display=bshowsrc?"inherit":"none";
+				el("input").value=input.data;
+				displayresults(generate_svg(input.data), {showgrf:bshowgrf, showdbg:bshowdbg, showtlb:bshowtlb});
+			}else{
+				el("divinput").style.display="inherit";
+			}
 		});
 	}
 	window.onload=onload_;
 	
-    function inspect(s) {
-      return "<pre>" + s.replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\"/g, "&quot;") + "</pre>";
-    }
+	function inspect(s) {
+		return "<pre>" + s.replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\"/g, "&quot;") + "</pre>";
+	}
 	function el(id){
 		return document.getElementById(id);
 	}
 
-	//sets item html and then renders (shows/hides) it or an associated item  
+	//sets item html and then renders (shows/hides) it or an associated item
 	//value is treated as html by default, or as text if astext is set.
-	//visible is true / false. 
+	//visible is true / false.
 	function render(id, value, visible, associateid, astext){
-		//set it even for display:none case, for any programmatic dom access. 
-		if(!astext)
+		//set it even for display:none case, for any programmatic dom access.
+		if(!astext){
 			el(id).innerHTML = value;
-		else
-			setinnertext(el(id),value); 
+		}else{
+			setinnertext(el(id),value);
+		}
 		associateid=associateid||id;
 		el(associateid).style.display=visible?"inherit":"none";
 	}
 	function render_a(id, uri, visible){
 		if(!el(id).href) return ;
 
-		// generate tinyurl using leggy if enabled. 
+		// generate tinyurl using leggy if enabled.
 		(function(done){
-			var TINYMAKER="none"; // disabled until leggy developers add CORS support. 
+			var TINYMAKER="none"; // disabled until leggy developers add CORS support.
 			
 			if(TINYMAKER=="leggy")
 				leggytinyurl(uri, done);
@@ -224,17 +310,18 @@
 		if(results.svg){
 			render("output", results.svg, displayopts.showgrf);
 			render("inspect", inspect(results.svg), displayopts.showdbg);
+			show_item("divtlb", displayopts.showtlb);
 		}
 		if(results.uri){
 			render_a("puburi", results.uri, displayopts.showuri);
 		}
 	}
 	
-    ["btnPublish","mnuPublish"].forEach(function(ii){
-		var xel=el(ii); 
+	["btnPublish","mnuPublish"].forEach(function(ii){
+		var xel=el(ii);
 		if(xel) xel.addEventListener("click", function(e){
 			//Temporarily disabling tinyurl generation as our generator leggy.io ain't CORS-friendly.
-			//Other generators are excessively ad-friendly. 
+			//Other generators are excessively ad-friendly.
 			var uri = generate_uri(el("input").value, true, function(uri){
 				displayresults({uri:uri, dspuri:uri}, {showuri:true});
 			});
@@ -244,23 +331,34 @@
 	el("puburi").addEventListener("click", function(e){
 		onload_();
 	}); */
-    el("generate").addEventListener("click", function(e) {
-      var result = generate_svg(el("input").value);
-      
-      if (result && result.svg) {
-		displayresults(result, {showgrf:true});
-      } else {
-        displayresults({svg:""}, {showgrf:true});
-      }
-      
-    });
-   
-    function _get_content_type(headers){ //headers can be an array of headers or a single header string.
+	el("visualize").addEventListener("click", function(e) {
+		var result = generate_svg(el("input").value);
+		if (!result || !result.svg) {
+			result = {svg:""};
+		}	
+		displayresults(result, {showgrf:true, showtlb:true});
+		
+	});
+	el("file-input").addEventListener("change", function(e) {
+		read_single_file_from_html_input(e, function(input){
+			var result = null;
+			if(input && input.data){
+				el("input").value = input.data;
+				result = generate_svg(input.data);
+			}
+			if (!result || !result.svg) {
+				result = {svg:""};
+			}	
+			displayresults(result, {showgrf:true});
+		});
+	});
+
+	function _get_content_type(headers){ //headers can be an array of headers or a single header string.
 		var hct ; //content type header serialized
 		var charset; //charset part only
 		var ct ;  //content-type part only
 		var outdata = null;
-		if(headers){ //de-multiplex array of headers and a single string header. 
+		if(headers){ //de-multiplex array of headers and a single string header.
 			if(typeof headers =='string')
 				hct=headers;
 			else (hct = headers["content-type"]);
@@ -271,34 +369,61 @@
 					cs = c[1].split('=');
 					if(cs[0].trim() == "charset"){
 						charset = cs[1].trim();
-					}   
+					}
 					ct = c[0].trim();
-				}   
+				}
 
 			// we're good if charset looks like utf8 or utf-8  mixed/upper/lowercase etc.
 				outdata={ content_type: ct };
 				outdata.charset = ((charset.search(/utf-?8/i)>=0)? "utf8":charset);
 			}
-		}   
+		}
 		return outdata;
 	}
 
-	//derivative of https://gist.github.com/4706967 
-	// XXXxhrget 
+	//derivative of https://gist.github.com/4706967
+	// XXXxhrget
+	//cb is  function(boolean failure, data_t jsonortxt, xhr_t xhrobject)
+	// outct is the  content-type desired in the response.
+	// jsonortxt is either a json object or a text string.
+  // timeout : in ms.
+	// no2xtry : if false, we try twice ; once with a uncredentialed, then with credentialed request.
+	function ezxhr2(url,cb,outct,timeout,no2xtry){
+		var control = {outct:outct,timeout:timeout, withCredentials:false,__recurse_level:0};
+		if(no2xtry){ control.__recurse_level = 1; }
+		return quickxhr(
+						url,
+						function(failure, jsonortxt, xhrobject){
+							if(failure && !control.__recurse_level){ //recurse once. 	
+								control.withCredentials = !control.withCredentials; //this time try with credentials flipped.
+								control.__recurse_level++; // keep recursion state. 	
+								return quickxhr(url, cb, control);
+							}else{
+								return cb(failure, jsonortxt, xhrobject);
+							}
+						},
+						control
+				);
+	}
+	
+	//derivative of https://gist.github.com/4706967
+	// XXXxhrget
 	//cb is  function(boolean failure, data_t jsonortxt, xhr_t xhrobject)
 	// outct is the  content-type desired in the response.
 	// jsonortxt is either a json object or a text string.
 	function ezxhr(url,cb,outct,timeout){
-		return quickxhr(url,cb,{outct:outct,timeout:timeout});
+		var options = {outct:outct,timeout:timeout,withCredentials:true};
+		return quickxhr(url, cb, options);
 	}
 
 	/*
 	options: {
 		method : "GET" (default, unless inpobj is set) ; "POST", "HEAD", etc.
-		inpobj : non-null if sending an object. Sending invokes the method requested. If set, POST is default method. 
+		inpobj : non-null if sending an object. Sending invokes the method requested. If set, POST is default method.
 		inpct  : defaults to "application/json" if sending an object.
 		outct  : desired content-type in the response. Defaults to "application/json".
 		timeout: requested timeout in millisec.
+	  withcredentials:  true or false ;; Default is false.
 	}
 	The default 'options' is : {method:"GET",outct:"application/json",timeout:8000}
 	*/
@@ -313,7 +438,7 @@
 		
 		var xhr;
 		function failed(e_,cb,xhr){
-				var e=(typeof(e_)==="string")?(new Error(e_)):e_; 
+				var e=(typeof(e_)==="string")?(new Error(e_)):e_;
 				if(console)console.log(e.message);
 				return cb(e,null,xhr);
 			};
@@ -323,30 +448,30 @@
 			}
 		}
 		try{
-			var ontimeout=function() {xhr.abort(); return failed("quickxhr: timeout",cb,xhr); } 
+			var ontimeout=function() {xhr.abort(); return failed("quickxhr: timeout",cb,xhr); }
 			var ftimer;
 			ftimer = setTimeout(ontimeout , timeout);
 			//TODO: use xhr timeouts : (not all browsers supported)
 			//see :https://developer.mozilla.org/en-US/docs/Web/API/XMLHttpRequest
 			//xhr.ontimeout=ontimeout;
 			
-			//The below line is stubbed out cuz I don't know how to xlate from progressevt to error. 
-			//xhr.onerror=function(progressevt){ failed(null,cb,xhr); }; 
+			//The below line is stubbed out cuz I don't know how to xlate from progressevt to error.
+			//xhr.onerror=function(progressevt){ failed(null,cb,xhr); };
 			xhr.onreadystatechange = function() {
 				if (xhr.readyState != 4) return;
 				clearTimeout(ftimer);
 				if(xhr.status == 200){
-					var rct=_get_content_type(xhr.getResponseHeader("Content-Type")); 
-					if(!rct || rct.content_type!=outct) { return failed("quickxhr: No Content Type",cb,xhr); } 
+					var rct=_get_content_type(xhr.getResponseHeader("Content-Type"));
+					if(!rct || rct.content_type!=outct) { return failed("quickxhr: No Content Type",cb,xhr); }
 					var rv = xhr.responseText;
 					if(rct.content_type=="application/json"){ try { rv=JSON.parse(rv); } catch(e){ return failed(e,cb,xhr); }}
-					return cb(null, rv, xhr); 
-				}else { 
+					return cb(null, rv, xhr);
+				}else {
 					return failed("quickxhr: server response status is "+xhr.status,cb,xhr);
-				} 
+				}
 			}
 			xhr.open(method?method.toUpperCase():"GET", url, true);
-			xhr.withCredentials = true;
+			xhr.withCredentials = !!options.withCredentials;
 
 			if(!post){
 				xhr.send();
@@ -374,15 +499,15 @@
 		if (xhr.readyState != 4) return;
 		clearTimeout(ftimer);
 		if(xhr.status == 200){
-		var rct=_get_content_type(xhr.getResponseHeader("Content-Type")); 
-		if(!rct){ cb(new Error("Bad Content Type")); return ; } 
-		var rtxt=xhr.responseText; 
+		var rct=_get_content_type(xhr.getResponseHeader("Content-Type"));
+		if(!rct){ cb(new Error("Bad Content Type")); return ; }
+		var rtxt=xhr.responseText;
 		var rjson;
 		if(rct.content_type=="application/json"){ try { rjson=JSON.parse(rtxt); } catch(e){ cb(e); }}
-		cb(false, rjson || rtxt, xhr); 
-		}else { 
+		cb(false, rjson || rtxt, xhr);
+		}else {
 		cb(new Error("xhr: server response status is "+xhr.status));
-		} 
+		}
 		}
 		xhr.open(method?method.toUpperCase():"GET", url, true);
 
@@ -401,8 +526,8 @@
 	}
 
 	</script>
-    
+
 <!--
- vim: ft=html:noet:ts=2:sts=2:sw=2:
+ vim: ft=htmlm4:noet:ts=2:sts=2:sw=2:
 -->
 </body></html>
