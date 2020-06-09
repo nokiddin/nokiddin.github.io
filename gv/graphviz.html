@@ -20,17 +20,13 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 		<title>DistroDot - Dotty visualizer for Mind-maps</title>
 		<style type="text/css">
 				
-			#divtlb {
+			.tlb {
 				height: 20px;
-			background: yellow;
+				background: yellow;
 			}
 			#input {
 				width: 500px;
 				height: 300px;
-			}
-
-			#divinput {
-				display: none;
 			}
 			
 			#diverror {
@@ -42,16 +38,34 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 				text-decoration:underline;
 				cursor:pointer;
 			}
+			.hidden {
+				display: none;
+			}
+			.thickshell {
+				height: 40px;
+				vertical-align: middle;
+			}
+			#pointer{
+				height: 10px;
+			}
 		</style>
   </head>
   <body>
-	<div id="divtlb"> <!-- toolbar -->
-	<span class="cmnuitem" id="mnuEdit" onclick="show_input('mnuEdit','toggle');">Editor</span>
-	<span class="cmnuitem" id="mnuDebug" onclick="show_item('inspect','toggle','mnuDebug',{hide:'Debug',show:'Debug'});">Debug</span>
-	<span class="cmnuitem" id="mnuPublish">Publish URL</span>
-  <span class="cmnuitem"><a href="samples.html">Samples</a></span>
-	<span class="cmnuitem"><input id="file-input" type="file"></input></span>
+	<div id="divtlb" class="tlb"> <!-- toolbar -->
+		<span class="cmnuitem"><a href="samples.html">Samples</a></span>
+		<span class="cmnuitem" id="mnuLoad" onclick="show_item('inp-shell','toggle');">Open</span>
+		<span class="cmnuitem" id="mnuEdit" onclick="show_input('mnuEdit','toggle');">Edit</span>
+		<span class="cmnuitem" id="mnuDebug" onclick="show_item('inspect','toggle');">Debug</span>
+		<span class="cmnuitem" id="mnuSave" onclick="show_item('sav-shell','toggle');">Save Script</span>
+		<span class="cmnuitem" id="mnuSaveSVG" onclick="show_item('svg-shell','toggle');">Save SVG</span>
+		<span class="cmnuitem" id="mnuPublish">Publish URL</span>
 	</div>
+	<div class="thickshell">
+		<canvas id="pointer" class="hidden"></canvas>
+		<span id="inp-shell" class="hidden"><input id="file-input" type="file"></input></span>
+		<span id="sav-shell" class="hidden"><input id="save-input"></input><button onclick="uiSaveDot('save-input','sav-shell',el('input').value)">OK</button></span>
+		<span id="svg-shell" class="hidden"><input id="svg-input"></input><button onclick="uiSaveDot('svg-input','svg-shell',el('inspect').innerText)">OK</button></span>
+  </div>
 	<div id="divinput">
     <p><textarea id="input" spellcheck="false">digraph G {
 
@@ -65,7 +79,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
     <div id="divpuburi"><a id="puburi" href=""></a></div>
     <div id="output"></div>
-    <div id="inspect"></div>
+    <div id="divinspect"><pre><div id="inspect"></div></pre></div>
 
 <!--
 Underlying javascript/emscriptem toolkit : http://mdaines.github.io/viz.js
@@ -85,7 +99,34 @@ Underlying javascript/emscriptem toolkit : http://mdaines.github.io/viz.js
 	function mkuri(s){
 		return encodeURI(s);
 	}
+  function uiSaveDot(elFilename, elnShell, text){
+		if(!text) { return false; } 
+		var fileNameToSaveAs = el(elFilename).value;
+		savetxt2file(text, fileNameToSaveAs);
+		show_item(elnShell, "hide");
+		show_item(pointer, "hide");
+		return true;
+	}
+	function savetxt2file(txt, fileName) { //https://stackoverflow.com/questions/34870711
+			var blob = new Blob([txt], {type:'text/plain'});
 
+			var dlink = document.createElement("a");
+			dlink.download = fileName;
+			dlink.innerHTML = "Save File";
+			if (window.webkitURL != null) {
+					// Chrome allows the link to be clicked
+					// without actually adding it to the DOM.
+					dlink.href = window.webkitURL.createObjectURL(blob);
+			} else {
+					// Firefox requires the link to be added to the DOM
+					// before it can be clicked.
+					dlink.href = window.URL.createObjectURL(blob);
+					dlink.onclick = function(event){ document.body.removeChild(event.target); } ;
+					dlink.style.display = "none";
+					document.body.appendChild(dlink);
+			}
+			dlink.click();
+	}
 
 	function read_single_file_from_html_input(e, done) { //
 		function failed(){ done(null); return 0; }
@@ -214,6 +255,19 @@ Underlying javascript/emscriptem toolkit : http://mdaines.github.io/viz.js
 	function setinnertext(el,tx){
 		el.innerText=el.textContent=tx;
 	}
+  function drawtriangle(canvas, height){
+		if (canvas && canvas.getContext) {
+			var ctx = canvas.getContext('2d');
+
+			ctx.beginPath();
+			const L=0;
+			const H=height || 25;
+			ctx.moveTo(L, 0);
+			ctx.lineTo(L+2*H, 0);
+			ctx.lineTo(L+H, H);
+			ctx.fill();
+		}
+	}
 	
 	function show_input(mnuid, purpose){
 		return show_item("divinput",purpose,mnuid,{hide:"Hide Editor",show:"Editor"});
@@ -235,7 +289,8 @@ Underlying javascript/emscriptem toolkit : http://mdaines.github.io/viz.js
 		}else if(purpose===true || purpose=="show" || purpose=="true"){
 			to_be_visible=true;
 		}else if(purpose=="toggle"){
-		  var current_state=(el(targetid).style.display!="none");
+			const style = getComputedStyle(el(targetid));
+			const current_state= (style.display !== 'none') /* || (style.visibility === 'visible') */ ;
 			to_be_visible=!current_state;
 		}
 		el(targetid).style.display=to_be_visible?"inherit":"none";
@@ -261,11 +316,12 @@ Underlying javascript/emscriptem toolkit : http://mdaines.github.io/viz.js
 				el("divinput").style.display="inherit";
 			}
 		});
+		//drawtriangle(el("pointer"),100);
 	}
 	window.onload=onload_;
 	
 	function inspect(s) {
-		return "<pre>" + s.replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\"/g, "&quot;") + "</pre>";
+		return  s.replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\"/g, "&quot;");
 	}
 	function el(id){
 		return document.getElementById(id);
@@ -349,7 +405,9 @@ Underlying javascript/emscriptem toolkit : http://mdaines.github.io/viz.js
 			if (!result || !result.svg) {
 				result = {svg:""};
 			}	
-			displayresults(result, {showgrf:true});
+			displayresults(result, {showgrf:true, showtlb:true});
+			show_item("inp-shell", "hide");
+			show_item("pointer", "hide");
 		});
 	});
 
