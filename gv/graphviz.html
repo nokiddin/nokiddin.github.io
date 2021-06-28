@@ -60,9 +60,10 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 		<span class="cmnuitem" id="mnuSaveSVG" onclick="show_item('svg-shell','toggle');">Save SVG</span>
 		<span class="cmnuitem" id="mnuPublish">Publish URL</span>
 	</div>
-	<div class="thickshell">
+	<div class="thickshell" id="divShell">
 		<canvas id="pointer" class="hidden"></canvas>
 		<span id="inp-shell" class="hidden"><input id="file-input" type="file"></input></span>
+		<span id="any-shell" class="hidden"><input id="save-input"></input><button onclick="uiSaveDot('save-input','sav-shell',el('input').value)">OK</button></span>
 		<span id="sav-shell" class="hidden"><input id="save-input"></input><button onclick="uiSaveDot('save-input','sav-shell',el('input').value)">OK</button></span>
 		<span id="svg-shell" class="hidden"><input id="svg-input"></input><button onclick="uiSaveDot('svg-input','svg-shell',el('inspect').innerText)">OK</button></span>
   </div>
@@ -98,6 +99,29 @@ Underlying javascript/emscriptem toolkit : http://mdaines.github.io/viz.js
 	}
 	function mkuri(s){
 		return encodeURI(s);
+	}
+	function uiMnuSave(){
+		function addInputNode(parent){
+			var n = document.createNode();
+			
+		}
+		var divShell = el("divShell");
+		addInput();
+		addButton();
+		createNode();
+
+		
+					dlink.href = window.URL.createObjectURL(blob);
+					button.onclick = function(event){ document.body.removeChild(event.target); } ;
+					dlink.style.display = "none";
+		
+	}
+  function uiSaveDot2(elFilename, text, done){
+		if(!text) { return false; } 
+		var fileNameToSaveAs = el(elFilename).value;
+		savetxt2file(text, fileNameToSaveAs);
+		done();
+		return true;
 	}
   function uiSaveDot(elFilename, elnShell, text){
 		if(!text) { return false; } 
